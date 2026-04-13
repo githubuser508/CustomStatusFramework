@@ -224,3 +224,7 @@ If you make a mod that verifies one of the above signatures, please let
 Requires MSVC (Visual Studio Build Tools). Run `build.bat` from the repo
 root. Output is `csf_core.dll` (renamed to `.asi` for the mod loader).
 Extension DLLs build separately against `csf_core_api.h`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -51,7 +51,7 @@
 /* Init wrapper and registry */
 #define RVA_INIT_CALLER      0x25370
 #define RVA_REGISTRY_BUILDER 0x3D3DE0
-#define RB_STOLEN_BYTES      15
+#define RB_STOLEN_BYTES      0   /* 0 = let mj_lde auto-calculate */
 #define RVA_POST_INIT_REG    0xD2E990
 #define RVA_POST_INIT_CB     0xE2F800
 

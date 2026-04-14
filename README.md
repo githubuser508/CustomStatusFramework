@@ -131,6 +131,19 @@ These can be used by name in `slot_overrides` without writing any C code.
 | `CSFExt_TickIncrement` | Increases stacks by 1 each tick; never removes. |
 | `CSFExt_TickDecrementAllowNegativeStacks` | Decreases stacks by 1 each tick but lets them go negative instead of removing. |
 
+### Damage-Reactive Counter (slot 67 -- OnReceivedDamageReport)
+
+| Behavior | What it does |
+|----------|-------------|
+| `CSFExt_CounterSubtractDamageTaken` | Subtracts the incoming damage from stacks. Removes the status at zero or below. |
+| `CSFExt_CounterAddDamageTaken` | Adds the incoming damage to stacks; never removes. |
+
+### Damage Cap (slot 63 -- OnReceivedDamage)
+
+| Behavior | What it does |
+|----------|-------------|
+| `CSFExt_DamageCap` | Clamps incoming damage to a maximum. Uses the named GON param `damage_cap` if set, otherwise falls back to current stacks. |
+
 ### Element Reactions (slot 80 -- OnElementInfluence)
 
 | Behavior | What it does |

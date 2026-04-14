@@ -13,7 +13,7 @@
  *     name registry + per-slot chain dispatcher does the rest -no
  *     hand-written RegisterExtension bind per status required.
  *
- *   - Ships 26 behaviors today, grouped into five families:
+ *   - Ships 29 behaviors today, grouped into seven families:
  *
  *       (1) Lifecycle / infrastructure (3):
  *           CSFExt_DeregisterFromDonorPool (slot 33 OnInit, AFTER),
@@ -27,17 +27,29 @@
  *           CSFExt_TickDecrementAllowNegativeStacks
  *           -all any-VoidSelf-slot REPLACE, all touch instance+0x5C.
  *
- *       (3) Slot 80 OnElementInfluence element-reactive remove (4):
+ *       (3) Slot 67 OnReceivedDamageReport damage-reactive (2):
+ *           CSFExt_CounterSubtractDamageTaken,
+ *           CSFExt_CounterAddDamageTaken -slot 67, SelfI64 family,
+ *           REPLACE chain.  Read event_data+0x14 (damage amount) and
+ *           apply as signed delta to instance+0x5C.  Subtract variant
+ *           self-removes at zero, gated on RequestRemoval.
+ *
+ *       (4) Slot 63 OnReceivedDamage damage cap (1):
+ *           CSFExt_DamageCap -slot 63, SelfI64 family, REPLACE chain.
+ *           Clamps context+0x90 to a maximum.  Named GON param
+ *           "damage_cap" overrides; falls back to stacks at +0x5C.
+ *
+ *       (5) Slot 80 OnElementInfluence element-reactive remove (4):
  *           CSFExt_RemoveOnFire, CSFExt_RemoveOnWater,
  *           CSFExt_RemoveOnCold, CSFExt_RemoveOnHeat -all slot 80,
  *           SelfI32P family, REPLACE chain, gated on RequestRemoval.
  *
- *       (4) Slot 81 GetImmunity publishers (8):
+ *       (6) Slot 81 GetImmunity publishers (8):
  *           CSFExt_PublishImmunity_{Burn, Wet, Cold, Bleed, Immobilize,
  *           Incapacitate, Petrify, Freeze} -slot 81, PtrRetOut family,
  *           REPLACE chain.
  *
- *       (5) Slot 82 stat-bonus donors (7):
+ *       (7) Slot 82 stat-bonus donors (7):
  *           CSFExt_StatBonus_{Strength, Dexterity, Constitution,
  *           Intelligence, Speed, Charisma, Luck} -slot 82, VoidSelf
  *           family, REPLACE chain.  Each adds instance+0x5C to the
@@ -524,6 +536,162 @@ static void CSFExt_TickDecrementAllowNegativeStacks(void* self)
 
 
 /* ===================================================================
+ *  Damage-reactive counter behaviors -- slot 67 OnReceivedDamageReport
+ *
+ *  Signature: void slot67(void* self, void* event_data).
+ *  Dispatcher family: SelfI64 (csf_core_gon_loader.c line 836).
+ *  Chain REPLACE in both cases -- a modder using these asserts the
+ *  donor's original slot-67 body (usually the base stub) is not needed.
+ *
+ *  event_data+0x14 holds the damage amount as a uint32, confirmed from
+ *  the SoulLink / Tuner_collector reverse-engineering (see
+ *  csf_ext_attuned_tuner.c Tuner_collector).  Both behaviors read this
+ *  field and apply it as a signed delta to the 32-bit counter at +0x5C.
+ *
+ *  CounterSubtractDamageTaken subtracts the damage amount from the
+ *  counter, signed.  If the result hits zero or goes negative, the
+ *  behavior asks Core to remove the instance via RequestRemoval.
+ *  The counter IS permitted to go negative on the final tick (no
+ *  clamping) -- the removal fires regardless of how far below zero
+ *  the subtract lands.  Slot 171 fires only on non-removal ticks
+ *  (same contract as CSFExt_TickDecrementRemoveAtZero).  Gated on
+ *  RequestRemoval at registration time.
+ *
+ *  CounterAddDamageTaken is the accumulator dual: adds the damage
+ *  amount to the counter.  Bleed-shape use: count total damage
+ *  received until a threshold is reached and another slot reacts
+ *  (e.g. an OnTurnEnd that checks the counter and fires a proc).
+ *  No cap, no removal condition.
+ *
+ *  Both fire slot 171 (OnStacksChangedPostTick) with the damage amount
+ *  as delta so a modder's slot-171 override (UI update, VFX trigger,
+ *  etc.) gets invoked automatically.
+ * =================================================================== */
+
+#define BCE_DAMAGE_AMOUNT_OFFSET   0x14
+
+
+/* -------------------------------------------------------------------
+ *  CSFExt_CounterSubtractDamageTaken  (slot 67, REPLACE)
+ *
+ *  Subtracts the incoming damage from the counter.  Self-removes at
+ *  zero or below via RequestRemoval.  Slot 171 fires only on
+ *  non-removal ticks.
+ * ------------------------------------------------------------------- */
+
+static void CSFExt_CounterSubtractDamageTaken(void* self, void* event_data)
+{
+    int32_t* counter;
+    int32_t  damage;
+
+    if (!self || !event_data) return;
+
+    damage = (int32_t)(*(uint32_t*)((char*)event_data + BCE_DAMAGE_AMOUNT_OFFSET));
+    if (damage <= 0) return;
+
+    counter = (int32_t*)((char*)self + BCE_STATUS_COUNTER_OFFSET);
+    *counter -= damage;
+
+    if (*counter <= 0)
+    {
+        if (g_csf.RequestRemoval)
+            g_csf.RequestRemoval(self);
+    }
+    else
+    {
+        BCE_FireOnStacksChangedPostTick(self, damage);
+    }
+}
+
+
+/* -------------------------------------------------------------------
+ *  CSFExt_CounterAddDamageTaken  (slot 67, REPLACE)
+ *
+ *  Accumulator dual of CounterSubtractDamageTaken.  Adds the damage
+ *  amount to the counter.  No cap, no removal condition.
+ * ------------------------------------------------------------------- */
+
+static void CSFExt_CounterAddDamageTaken(void* self, void* event_data)
+{
+    int32_t* counter;
+    int32_t  damage;
+
+    if (!self || !event_data) return;
+
+    damage = (int32_t)(*(uint32_t*)((char*)event_data + BCE_DAMAGE_AMOUNT_OFFSET));
+    if (damage <= 0) return;
+
+    counter = (int32_t*)((char*)self + BCE_STATUS_COUNTER_OFFSET);
+    *counter += damage;
+
+    BCE_FireOnStacksChangedPostTick(self, damage);
+}
+
+
+/* ===================================================================
+ *  Slot 63 -OnReceivedDamage damage-cap behavior
+ *
+ *  Signature: void slot63(void* self, void* context).
+ *  Dispatcher family: SelfI64 (csf_core_gon_loader.c line 835).
+ *  Chain REPLACE -- the donor's original slot-63 is the base no-op
+ *  stub for the vast majority of donors.  If a modder clones from a
+ *  donor that has real slot-63 logic (Brace, Marked, Zombie), they
+ *  should author a custom behavior that composes both, not layer
+ *  this generic cap on top.
+ *
+ *  context+0x90 is the incoming damage field (writable).  Confirmed
+ *  from the Brace decompilation which subtracts stacks from this
+ *  offset with a floor of 1.  This behavior clamps it to a maximum
+ *  cap instead of subtracting.
+ *
+ *  Cap source: if CSFCore_SidecarIntByName is available and the named
+ *  GON param "damage_cap" is > 0, that is the hard cap -- the counter
+ *  at +0x5C is irrelevant.  Otherwise (param absent, zero, or
+ *  SidecarIntByName not resolved), the current counter value at +0x5C
+ *  is the cap.  A modder can set the cap through ordinary stacks, and
+ *  other behaviors (tick decrement, damage-reactive subtract) can
+ *  erode it over time.
+ *
+ *  Floor is 0 -- this behavior can reduce damage to zero (full block).
+ *  Brace floors at 1 because vanilla Brace always lets chip damage
+ *  through; a cap is a hard ceiling, not a subtraction, so a zero
+ *  floor is correct here.
+ *
+ *  First parameter-based slot behavior in BCE.  Exercises the
+ *  SidecarIntByName path for future behaviors that need richer GON
+ *  configuration than the single counter at +0x5C.
+ * =================================================================== */
+
+#define BCE_DAMAGE_FIELD_OFFSET  0x90
+
+static void CSFExt_DamageCap(void* self, void* context)
+{
+    int32_t  cap;
+    int32_t* damage_ptr;
+    int32_t  current;
+
+    if (!self || !context) return;
+
+    /* Named GON param takes priority if available */
+    cap = 0;
+    if (g_csf.SidecarIntByName)
+        cap = g_csf.SidecarIntByName(self, "damage_cap");
+
+    /* Fall back to stacks */
+    if (cap <= 0)
+        cap = *(int32_t*)((char*)self + BCE_STATUS_COUNTER_OFFSET);
+
+    if (cap <= 0) return;   /* no valid cap, pass through */
+
+    damage_ptr = (int32_t*)((char*)context + BCE_DAMAGE_FIELD_OFFSET);
+    current = *damage_ptr;
+
+    if (current > cap)
+        *damage_ptr = cap;
+}
+
+
+/* ===================================================================
  *  Slot 80 -OnElementInfluence element-reactive behaviors
  *
  *  Signature: void slot80(void* self, const CSF_ElementMask* mask).
@@ -891,6 +1059,24 @@ static const BCE_BehaviorEntry g_bceBehaviors[] =
       (void*)CSFExt_TickIncrement,              0 },
     { "CSFExt_TickDecrementAllowNegativeStacks", -1, CSF_CHAIN_REPLACE,
       (void*)CSFExt_TickDecrementAllowNegativeStacks, 0 },
+
+    /* Slot 67 -- OnReceivedDamageReport damage-reactive counter
+     * mutation.  SelfI64 signature, REPLACE chain.  Both read
+     * event_data+0x14 (damage amount) and apply it as a signed delta
+     * to the counter at +0x5C.  Subtract variant self-removes at
+     * zero and is gated on RequestRemoval. */
+    { "CSFExt_CounterSubtractDamageTaken",      67, CSF_CHAIN_REPLACE,
+      (void*)CSFExt_CounterSubtractDamageTaken, 1 },
+    { "CSFExt_CounterAddDamageTaken",           67, CSF_CHAIN_REPLACE,
+      (void*)CSFExt_CounterAddDamageTaken,      0 },
+
+    /* Slot 63 -- OnReceivedDamage damage-cap.  SelfI64 signature,
+     * REPLACE chain.  Clamps context+0x90 to a maximum.  Cap source:
+     * named GON param "damage_cap" via SidecarIntByName (hard cap) if
+     * available, else falls back to stacks at +0x5C.  No removal or
+     * sidecar hard dependency -- degrades to stacks-as-cap. */
+    { "CSFExt_DamageCap",                       63, CSF_CHAIN_REPLACE,
+      (void*)CSFExt_DamageCap,                  0 },
 
     /* Slot 80 -- OnElementInfluence element-reactive remove helpers.
      * SelfI32P signature, REPLACE chain, gated on RequestRemoval. */

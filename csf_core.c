@@ -57,12 +57,19 @@ static fn_attach_passive   g_originalAP  = NULL;
 static fn_primary_reg      g_originalPR  = NULL;
 static fn_get_status_flags g_originalGSF = NULL;
 static fn_resolve_status   g_originalRS  = NULL;
+static fn_instance_lookup  g_originalIL  = NULL;
 fn_apply_status            g_originalAS  = NULL;
 
 /* Registration-time vtable override (generic infrastructure) */
 static void* g_pendingCustomVtable  = NULL;
 static void* g_pendingParentVtable  = NULL;  /* exact vtable ptr (C-defined statuses) */
 static const UINT_PTR* g_pendingDonorRvas = NULL;  /* slot RVA array (GON-defined statuses) */
+
+/* Active custom-def idx while we are inside HookApplyStatus's redirect
+ * window. -1 when no redirect is in flight, so the instance-lookup hook
+ * knows to pass through. Set right before g_originalAS, cleared right
+ * after. See HookInstanceLookup for the filter logic. */
+static int g_pendingDefIdx = -1;
 
 /* DLL-owned registration slots for custom type indices.
  * Max count must accommodate both Mewjector-allocated and
@@ -880,9 +887,15 @@ static void* HookApplyStatus(void* name, void* owner, int stacks, void* gonObj,
          * them. We therefore post-process the stack count below for
          * accumulate-mode statuses. */
 
+        /* Arm the instance-lookup hook so it filters out cross-custom
+         * collisions on the shared donor. Cleared in the finally-style
+         * block below regardless of how g_originalAS returns. */
+        g_pendingDefIdx = defIdx;
+
         result = g_originalAS(tempStr, owner, stacks, gonObj, source,
                                ctx6, flag7, flag8);
 
+        g_pendingDefIdx        = -1;
         g_pendingCustomVtable  = NULL;
         g_pendingParentVtable  = NULL;
         g_pendingDonorRvas     = NULL;
@@ -1081,6 +1094,88 @@ static void* HookAttachPassive(void* classname, void* owner,
     return g_originalAP(classname, owner, params, treat_as_passive);
 }
 
+
+
+/* ====================================================================
+ *  Hook -instance_lookup (RVA 0x959B90)
+ *
+ *  PURPOSE
+ *  -------
+ *  Disambiguate two custom statuses cloned from the same donor on the
+ *  same bearer. The game's per-status-name inner handlers call this
+ *  helper to ask "does the bearer already have a status whose type_info
+ *  contains this hash?". Because our custom clones inherit the donor's
+ *  type_info, all of them match the donor's hash, so the first instance
+ *  on a bearer shadows every subsequent apply of a different custom
+ *  status on the same donor (silent vtable clobber in HookApplyStatus's
+ *  existing-instance branch).
+ *
+ *  Fix: while HookApplyStatus is mid-redirect (g_pendingDefIdx >= 0),
+ *  post-filter the output buffer. Any instance whose sidecar carries a
+ *  different status_def_idx is removed from the buffer. From the per-
+ *  status-name handler's perspective, that bearer has no matching
+ *  instance, so it takes the "create new" branch instead of folding
+ *  into the sibling custom status. Vanilla statuses (no sidecar) pass
+ *  through unchanged.
+ *
+ *  Buffer layout (from decomp of FUN_140959b90):
+ *      +0x00  uint32   capacity
+ *      +0x04  uint32   count
+ *      +0x08  void**   data   (array of instance pointers)
+ *
+ *  Outside the redirect window g_pendingDefIdx is -1 and the hook is a
+ *  pass-through to the original. All 303 vanilla callers of the helper
+ *  (unrelated statuses doing their own dedupe, broadcast iterations,
+ *  etc.) still see the unfiltered output buffer.
+ * ==================================================================== */
+
+typedef struct CSF_LookupOutBuf {
+    unsigned int capacity;
+    unsigned int count;
+    void**       data;
+} CSF_LookupOutBuf;
+
+static void* HookInstanceLookup(void* container, void* out_raw, int type_hash)
+{
+    void* result = g_originalIL(container, out_raw, type_hash);
+
+    if (g_pendingDefIdx >= 0 && out_raw)
+    {
+        CSF_LookupOutBuf* buf = (CSF_LookupOutBuf*)out_raw;
+        if (buf->count > 0 && buf->data)
+        {
+            unsigned int write = 0;
+            unsigned int read;
+            unsigned int orig = buf->count;
+
+            for (read = 0; read < buf->count; read++)
+            {
+                void* inst = buf->data[read];
+                const CSF_InstanceSidecar* sc = CSF_GetSidecar(inst);
+
+                /* Hide custom instances whose def idx does not match the
+                 * pending apply. Vanilla instances (no sidecar) and
+                 * same-def customs pass through. */
+                if (sc && sc->status_def_idx != g_pendingDefIdx)
+                    continue;
+
+                if (write != read)
+                    buf->data[write] = buf->data[read];
+                write++;
+            }
+
+            if (write != orig)
+            {
+                buf->count = write;
+                SLog("[IL hook] filtered %u -> %u entries "
+                     "(pending defIdx=%d, type_hash=0x%X)",
+                     orig, write, g_pendingDefIdx, type_hash);
+            }
+        }
+    }
+
+    return result;
+}
 
 
 /* ====================================================================
@@ -1350,7 +1445,20 @@ static int InstallHooks_Mewjector(void)
         SLog("  [MJ] FAILED: get_status_icon hook -custom icon override will not work");
     }
 
-    SLog("  [MJ] %d/6 hooks installed via Mewjector", hookCount);
+    /* Hook 8: instance_lookup -cross-custom collision filter. Priority
+     * 10; only active when g_pendingDefIdx is set (i.e. inside our
+     * apply_status redirect window), pass-through otherwise. */
+    trampoline = NULL;
+    if (g_mj->InstallHook(RVA_INSTANCE_LOOKUP, IL_STOLEN_BYTES,
+                           (void*)HookInstanceLookup, &trampoline, 10, "CSF")) {
+        g_originalIL = (fn_instance_lookup)trampoline;
+        hookCount++;
+        SLog("  [MJ] instance_lookup hook installed (priority 10) [cross-custom collision filter]");
+    } else {
+        SLog("  [MJ] FAILED: instance_lookup hook -cross-custom collision on shared donor will silently break");
+    }
+
+    SLog("  [MJ] %d/8 hooks installed via Mewjector", hookCount);
     return hookCount;
 }
 
@@ -1481,6 +1589,15 @@ static int InstallHooks_Raw(void)
     } else {
         SLog("  [RAW] FAILED: get_status_icon hook");
     }
+
+    /* instance_lookup -cross-custom collision filter. Skipped in raw
+     * mode because IL_STOLEN_BYTES is 0 (auto-calc) and the raw
+     * trampoline has no length disassembler. Standalone users running
+     * two custom statuses on the same donor will still hit the silent
+     * collision; load CSF through Mewjector to get the fix. */
+    SLog("  [RAW] instance_lookup hook SKIPPED -- requires Mewjector's "
+         "length-disassembled trampoline. Cross-custom collisions on a "
+         "shared donor will silently break under standalone loading.");
 
     SLog("  [RAW] %d/6 hooks installed via raw trampolines", hookCount);
     return hookCount;

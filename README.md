@@ -211,7 +211,7 @@ see [VtableSlotReference](docs/VtableSlotReference.md) for the full 172-slot tab
 | `OnCastAbility` | 56 | SelfI64 | medium | |
 | `OnAttackValidate` | 58 | SelfI64 | low | |
 | `OnDealDamage` | 59 | SelfI64I64I8 | low | |
-| `OnReceivedDamage` | 63 | SelfI64 | verified | |
+| `OnReceivedDamage` | 63 | SelfI64PI8 | verified | `void(self, damage_ctx*, char flag)`. Flag in R8B gates Brace/Stealth's attacker-vs-bearer check. |
 | `OnWillDieFromDamage` | 65 | VoidSelf | stub | |
 | `OnDamageReport` | 66 | SelfI64I64 | low | |
 | `OnReceivedDamageReport` | 67 | SelfI64 | verified | |

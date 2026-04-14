@@ -35,9 +35,12 @@
  *           self-removes at zero, gated on RequestRemoval.
  *
  *       (4) Slot 63 OnReceivedDamage damage cap (1):
- *           CSFExt_DamageCap -slot 63, SelfI64 family, REPLACE chain.
- *           Clamps context+0x90 to a maximum.  Named GON param
- *           "damage_cap" overrides; falls back to stacks at +0x5C.
+ *           CSFExt_DamageCap -slot 63, SelfI64PI8 family, REPLACE
+ *           chain.  Clamps context+0x90 to a maximum.  Named GON
+ *           param "damage_cap" overrides; falls back to stacks at
+ *           +0x5C.  The slot's 3rd arg (char flag) is ignored by
+ *           this behavior but preserved through the dispatcher so
+ *           chained donor logic still sees it.
  *
  *       (5) Slot 80 OnElementInfluence element-reactive remove (4):
  *           CSFExt_RemoveOnFire, CSFExt_RemoveOnWater,
@@ -631,8 +634,10 @@ static void CSFExt_CounterAddDamageTaken(void* self, void* event_data)
 /* ===================================================================
  *  Slot 63 -OnReceivedDamage damage-cap behavior
  *
- *  Signature: void slot63(void* self, void* context).
- *  Dispatcher family: SelfI64 (csf_core_gon_loader.c line 835).
+ *  Signature: void slot63(void* self, void* context, char flag).
+ *  Dispatcher family: SelfI64PI8.  This behavior only reads the first
+ *  two args; the flag is preserved through the dispatcher so AFTER-
+ *  chain donors (Brace / Stealth / OldStealth) still see it.
  *  Chain REPLACE -- the donor's original slot-63 is the base no-op
  *  stub for the vast majority of donors.  If a modder clones from a
  *  donor that has real slot-63 logic (Brace, Marked, Zombie), they
@@ -664,11 +669,14 @@ static void CSFExt_CounterAddDamageTaken(void* self, void* event_data)
 
 #define BCE_DAMAGE_FIELD_OFFSET  0x90
 
-static void CSFExt_DamageCap(void* self, void* context)
+static void CSFExt_DamageCap(void* self, void* context, char flag)
 {
     int32_t  cap;
     int32_t* damage_ptr;
     int32_t  current;
+
+    (void)flag;   /* 3rd arg kept for dispatcher-signature match; the
+                   * cap logic doesn't care about the gated-check flag */
 
     if (!self || !context) return;
 
@@ -1070,7 +1078,7 @@ static const BCE_BehaviorEntry g_bceBehaviors[] =
     { "CSFExt_CounterAddDamageTaken",           67, CSF_CHAIN_REPLACE,
       (void*)CSFExt_CounterAddDamageTaken,      0 },
 
-    /* Slot 63 -- OnReceivedDamage damage-cap.  SelfI64 signature,
+    /* Slot 63 -- OnReceivedDamage damage-cap.  SelfI64PI8 signature,
      * REPLACE chain.  Clamps context+0x90 to a maximum.  Cap source:
      * named GON param "damage_cap" via SidecarIntByName (hard cap) if
      * available, else falls back to stacks at +0x5C.  No removal or

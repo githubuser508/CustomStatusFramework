@@ -90,7 +90,7 @@ Slots 7--10, 12--27, 29--32 are unnamed. Most are stubs across all 303 donors.
 | 58 | `OnAttackValidate` | low | |
 | 59 | `OnDealDamage` | low | |
 | 61 | `OnDamageReceived` | -- | UNIQUE. |
-| 63 | `OnReceivedDamage` | verified | Incoming damage modifier. Brace subtracts stacks from damage (floor 1). Marked forces crit. |
+| 63 | `OnReceivedDamage` | verified | Signature `void(self, damage_ctx*, char flag)` (3-arg, SelfI64PI8). Incoming damage modifier. Brace subtracts stacks from damage (floor 1). Marked forces crit. Flag in R8B is read by Brace / Stealth / OldStealth to gate an attacker-vs-bearer friendly-fire check; Marked / Zombie ignore it. |
 | 64 | `OnAppliedStatuses` | high | UNIQUE. |
 | 65 | `OnWillDieFromDamage` | medium | |
 | 66 | `OnDamageReport` | low | |

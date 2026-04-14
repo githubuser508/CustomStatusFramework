@@ -100,6 +100,19 @@
 #define RVA_DISPLAY_LOOKUP   0x490EF0
 #define GSI_STOLEN_BYTES     15
 
+/* Bearer status-list lookup helper. Signature:
+ *   void* lookup(void* container, void* out_buf, int type_hash);
+ * where `container = *(void**)(entity + 0x18)` and `out_buf` points to
+ * a 16-byte header { uint32 capacity; uint32 count; void** data; }.
+ * The game's per-status-name inner handlers call this to ask "does the
+ * bearer already have a status whose type_info contains this hash?" and
+ * route into accumulate / presence branches on a match. Hooked so cross-
+ * custom collisions on a shared donor can be filtered out, letting two
+ * different custom statuses cloned from the same donor coexist on the
+ * same bearer. 360-byte function, 303 callers in the vanilla binary. */
+#define RVA_INSTANCE_LOOKUP  0x959B90
+#define IL_STOLEN_BYTES      0   /* 0 = let mj_lde auto-calculate */
+
 /* Status removal -called when stacks reach 0 */
 #define RVA_STATUS_REMOVAL   0x75CF80
 
@@ -246,6 +259,7 @@ typedef void     (*fn_resolve_status)(void*, void*, void*, int, void*);
 typedef void*    (*fn_display_lookup)(void*, void*, char);
 typedef void*    (*fn_apply_status)(void*, void*, int, void*, void*,
                                     void*, char, char);
+typedef void*    (*fn_instance_lookup)(void*, void*, int);
 typedef void     (*fn_primary_reg)(void*, void*);
 typedef void     (*fn_dynarray_append)(void*, void*);
 typedef void     (*fn_hashmap_insert)(void*, void*);

@@ -265,6 +265,7 @@ typedef enum {
     CSF_SIG_SelfI64,
     CSF_SIG_SelfI64I64,
     CSF_SIG_SelfI64I64I8,
+    CSF_SIG_SelfI64PI8,
     CSF_SIG_SelfI32P,
     CSF_SIG_PtrRetOut,
     CSF_SIG_I32PRetOut,
@@ -282,6 +283,7 @@ static const char* CSF_SigGroupName(CSF_SignatureGroup g)
         case CSF_SIG_SelfI64:      return "SelfI64";
         case CSF_SIG_SelfI64I64:   return "SelfI64I64";
         case CSF_SIG_SelfI64I64I8: return "SelfI64I64I8";
+        case CSF_SIG_SelfI64PI8:   return "SelfI64PI8";
         case CSF_SIG_SelfI32P:     return "SelfI32P";
         case CSF_SIG_PtrRetOut:    return "PtrRetOut";
         case CSF_SIG_I32PRetOut:   return "I32PRetOut";
@@ -520,6 +522,40 @@ typedef void (*csf_sig_selfi32p_fn_t)(void* self, INT32* a1);
         behavior(self, a1); \
     }
 
+/* -- Signature 6b: void (*)(void* self, INT64* a1, char a2) --
+ *     SelfI64PI8 family (slot 63 OnReceivedDamage)
+ *
+ * Slot 63's caller-side ABI is (self, damage_context*, char flag).
+ * The flag rides in R8B and is read by Brace / Stealth / OldStealth
+ * overrides to gate friendly-fire / peer-ignore paths. Using a
+ * 2-arg SelfI64 dispatcher here loses R8 across our call frame and
+ * feeds the donor garbage, which silently breaks the gated branch
+ * on any custom status cloned from a 3-arg donor. Dedicated family
+ * preserves all three registers through the dispatcher. */
+typedef void (*csf_sig_selfi64pi8_fn_t)(void* self, INT64* a1, char a2);
+
+#define DEFINE_SELFI64PI8_DISPATCHERS(slotnum) \
+    static void CSF_Dispatch_SelfI64PI8_Slot##slotnum##_AFTER(void* self, INT64* a1, char a2) \
+    { \
+        CSF_SlotOverride* ov; \
+        csf_sig_selfi64pi8_fn_t donor, behavior; \
+        ov = CSF_FindOverrideForInstance(self, slotnum); \
+        if (!ov || !ov->behavior_fn) return; \
+        donor    = (csf_sig_selfi64pi8_fn_t)ov->behavior_donor_fn; \
+        behavior = (csf_sig_selfi64pi8_fn_t)ov->behavior_fn; \
+        if (donor) donor(self, a1, a2); \
+        behavior(self, a1, a2); \
+    } \
+    static void CSF_Dispatch_SelfI64PI8_Slot##slotnum##_REPLACE(void* self, INT64* a1, char a2) \
+    { \
+        CSF_SlotOverride* ov; \
+        csf_sig_selfi64pi8_fn_t behavior; \
+        ov = CSF_FindOverrideForInstance(self, slotnum); \
+        if (!ov || !ov->behavior_fn) return; \
+        behavior = (csf_sig_selfi64pi8_fn_t)ov->behavior_fn; \
+        behavior(self, a1, a2); \
+    }
+
 /* -- Signature 7: void* (*)(void* self, void* out) -- PtrRetOut family
  *     (slots 0 GetName, 29, 81 GetImmunity)
  *
@@ -718,9 +754,10 @@ typedef UINT64 (*csf_sig_selfreti64_fn_t)(void* self);
  *       route through VoidSelf as a best guess so modders who bind
  *       to them still get their behavior called)
  *    1  Dtor slot (5)
- *   16  SelfI64 slots  (incl. slot 171 OnStacksChangedPostTick)
+ *   15  SelfI64 slots  (incl. slot 171 OnStacksChangedPostTick)
  *    5  SelfI64I64 slots
  *    2  SelfI64I64I8 slots
+ *    1  SelfI64PI8 slot  (63 OnReceivedDamage)
  *    2  SelfI32P slots
  *    3  PtrRetOut slots
  *    2  I32PRetOut slots
@@ -832,7 +869,6 @@ DEFINE_SELFI64_DISPATCHERS(53)    /* (unnamed, SELFP_I64)               (none)  
 DEFINE_SELFI64_DISPATCHERS(54)    /* OnAnyCharacterTurnEnd              (medium)   */
 DEFINE_SELFI64_DISPATCHERS(56)    /* OnCastAbility                      (medium)   */
 DEFINE_SELFI64_DISPATCHERS(58)    /* OnAttackValidate                   (low)      */
-DEFINE_SELFI64_DISPATCHERS(63)    /* OnReceivedDamage                   (verified) */
 DEFINE_SELFI64_DISPATCHERS(67)    /* OnReceivedDamageReport             (verified) */
 DEFINE_SELFI64_DISPATCHERS(85)    /* (unnamed, SELF_I64)                (none)     */
 DEFINE_SELFI64_DISPATCHERS(89)    /* OnRefreshAbility                   (verified) */
@@ -859,6 +895,9 @@ DEFINE_SELFI64I64I8_DISPATCHERS(62) /* (unnamed)                        (none)  
 /* ---------- SelfI32P (2 slots) ---------- */
 DEFINE_SELFI32P_DISPATCHERS(80)     /* OnElementInfluence               (verified) */
 DEFINE_SELFI32P_DISPATCHERS(118)    /* (unnamed)                        (none)     */
+
+/* ---------- SelfI64PI8 (1 slot) ---------- */
+DEFINE_SELFI64PI8_DISPATCHERS(63)   /* OnReceivedDamage                 (verified) */
 
 /* ---------- PtrRetOut (3 slots) ---------- */
 DEFINE_PTRRETOUT_DISPATCHERS(0)     /* GetName                          (proven)   */
@@ -1018,7 +1057,7 @@ static CSF_SlotDispatchInfo CSF_GetSlotDispatchInfo(int slotIndex)
         SLOT_ENTRY ( 60, VoidSelf,       STUB,     NULL)
         SLOT_UNIQUE( 61, "OnDamageReceived")  /* UNIQUE (long, long, char) */
         SLOT_ENTRY ( 62, SelfI64I64I8,   NONE,     NULL)
-        SLOT_ENTRY ( 63, SelfI64,        VERIFIED, "OnReceivedDamage")
+        SLOT_ENTRY ( 63, SelfI64PI8,     VERIFIED, "OnReceivedDamage")
         SLOT_UNIQUE( 64, "OnAppliedStatuses")  /* UNIQUE (long*, long*) */
         SLOT_ENTRY ( 65, VoidSelf,       STUB,     "OnWillDieFromDamage")
         SLOT_ENTRY ( 66, SelfI64I64,     LOW,      "OnDamageReport")

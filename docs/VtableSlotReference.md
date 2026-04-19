@@ -98,7 +98,7 @@ Slots 7--10, 12--27, 29--32 are unnamed. Most are stubs across all 303 donors.
 | 68 | `OnDodgedDamage` | low | |
 | 69 | `OnBlockedDamage` | low | |
 
-### Element / Immunity / Stats (80--91)
+### Element / Immunity / Stats (80--90)
 
 | Slot | Name | Confidence | Notes |
 |------|------|:----------:|-------|

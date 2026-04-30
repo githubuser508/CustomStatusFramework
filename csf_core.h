@@ -51,7 +51,8 @@
 /* Init wrapper and registry */
 #define RVA_INIT_CALLER      0x25370
 #define RVA_REGISTRY_BUILDER 0x3D3DE0
-#define RB_STOLEN_BYTES      0   /* 0 = let mj_lde auto-calculate */
+/* mj_lde auto-calc returns 15 here, slicing the call __chkstk; force 17. */
+#define RB_STOLEN_BYTES      17
 #define RVA_POST_INIT_REG    0xD2E990
 #define RVA_POST_INIT_CB     0xE2F800
 
@@ -798,6 +799,9 @@ UINT64 CSF_GenericTypeNameCheck(void* self, void* nameStr);  /* slot 2  */
 void*  CSF_GenericGetTypeInfo(void* self);                   /* slot 3  */
 void   CSF_GenericGetDisplayName(void* self, void* outStr);
 void*  CSF_GenericGetDisplayDesc(void* self, void* outBuf);  /* slot 28 */
+
+
+#endif /* CUSTOM_STATUS_FRAMEWORK_H */
 
 
 #endif /* CUSTOM_STATUS_FRAMEWORK_H */

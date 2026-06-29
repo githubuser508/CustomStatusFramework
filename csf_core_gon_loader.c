@@ -693,12 +693,12 @@ typedef void* (*csf_sig_selfretptr_fn_t)(void* self);
 /* -- Signature 11: UINT64 (*)(void* self) -- SelfRetI64 family
  *
  * Used by slot 1 GetTypeId.  Proven across all 303 statuses at the
- * shared donor VA `0x1400476b0`.  Ghidra reported the prototype as
- * `undefined8 FUN_1400476b0()`
+ * shared donor VA `0x14059EA00`.  Ghidra reported the prototype as
+ * `undefined8 FUN_14059ea00()`
  * with the implicit `this` pointer stripped, but the real shape is
  * `int64_t (*)(void* self)` -a pure RTTI-style integer accessor.
  * Note: this is NOT one of the FAPOBase_Initialize-polluted slots
- * (those are 4, 92, 93, 167 -all sharing VA `0x140050af0`); slot 1
+ * (those are 4, 92, 93, 167 -all sharing VA `0x14050F50`); slot 1
  * has its own dedicated implementation.  We widen the return type
  * to UINT64 so callers that interpret it as a 32-bit class index
  * still get the low half cleanly (x86-64 zero-extends small return
@@ -1538,7 +1538,7 @@ void* CSF_GenericGetName(void* self, void* outStr)
              * check if +0x88 has been initialized (cap > 0) and still
              * contains the donor name.  If so, we replace it with the
              * custom name.  This fires from post-creation callers
-             * (RA+0x126F09, RA+0x806D84) which run after the game
+             * (RA+0x128249, RA+0x80FD14) which run after the game
              * has written the donor name to +0x88.
              */
             {

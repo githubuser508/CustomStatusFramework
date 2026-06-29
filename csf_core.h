@@ -49,48 +49,48 @@
  * ==================================================================== */
 
 /* Init wrapper and registry */
-#define RVA_INIT_CALLER      0x25370
-#define RVA_REGISTRY_BUILDER 0x3D3DE0
+#define RVA_INIT_CALLER      0x25530
+#define RVA_REGISTRY_BUILDER 0x3D5020
 /* mj_lde auto-calc returns 15 here, slicing the call __chkstk; force 17. */
 #define RB_STOLEN_BYTES      17
-#define RVA_POST_INIT_REG    0xD2E990
-#define RVA_POST_INIT_CB     0xE2F800
+#define RVA_POST_INIT_REG    0xD3632C
+#define RVA_POST_INIT_CB     0xE34970
 
 /* Hooking targets */
-#define RVA_ATTACH_PASSIVE   0x491B90
+#define RVA_ATTACH_PASSIVE   0x4931A0
 #define AP_STOLEN_BYTES      15
-#define RVA_APPLY_STATUS     0x480C80
+#define RVA_APPLY_STATUS     0x482240
 #define AS_STOLEN_BYTES      15
-#define RVA_GET_STATUS_FLAGS 0x490CA0
+#define RVA_GET_STATUS_FLAGS 0x4922B0
 #define GSF_STOLEN_BYTES     15
-#define RVA_RESOLVE_STATUS   0x4904D0
+#define RVA_RESOLVE_STATUS   0x491AE0
 #define RS_STOLEN_BYTES      15
-#define RVA_PRIMARY_REG      0x95AF40  /* was 0x959B90: that was a 4-arg filter-collect helper, not registration. Day-1 bug -RelocateRVAs never actually implemented the primary_reg heuristic. Real primary_reg has the fingerprint (classDesc, instance), calls vtable slot 3, touches classDesc+0x18/0x20/0x488. */
+#define RVA_PRIMARY_REG      0x962F10  /* was 0x959B90: that was a 4-arg filter-collect helper, not registration. Day-1 bug -RelocateRVAs never actually implemented the primary_reg heuristic. Real primary_reg has the fingerprint (classDesc, instance), calls vtable slot 3, touches classDesc+0x18/0x20/0x488. */
 #define PR_STOLEN_BYTES      15
 
 /* Status registry */
-#define RVA_REGISTRY         0x13B1810
+#define RVA_REGISTRY         0x13BB510
 
 /* String functions */
-#define RVA_STRING_CTOR      0x52640
-#define RVA_STRING_DTOR      0x522D0
-#define RVA_STRING_CLEANUP   0x287A0
+#define RVA_STRING_CTOR      0x52AA0
+#define RVA_STRING_DTOR      0x52730
+#define RVA_STRING_CLEANUP   0x28960
 
 /* Map insert functions */
-#define RVA_INT32_INSERT     0x556330
-#define RVA_FLOAT64_INSERT   0x5B51B0
-#define RVA_DATA32_INSERT    0x556190
-#define RVA_TYPEA_INSERT     0x556170
-#define RVA_TYPEB_INSERT     0x556150
+#define RVA_INT32_INSERT     0x558280
+#define RVA_FLOAT64_INSERT   0x5B78B0
+#define RVA_DATA32_INSERT    0x5580E0
+#define RVA_TYPEA_INSERT     0x5580C0
+#define RVA_TYPEB_INSERT     0x5580A0
 
 /* Registration helpers */
-#define RVA_DYNARRAY_APPEND  0x47B60
-#define RVA_HASHMAP_INSERT   0x804050
-#define RVA_NOOP_CALLBACK    0x35A60
+#define RVA_DYNARRAY_APPEND  0x47FC0
+#define RVA_HASHMAP_INSERT   0x80CFE0
+#define RVA_NOOP_CALLBACK    0x35B80
 
 /* Template vtables (donors) */
-#define RVA_BLEED_VT         0xF76B00
-#define RVA_SOULLINK_VT      0xF31B90
+#define RVA_BLEED_VT         0xF7D350
+#define RVA_SOULLINK_VT      0xF383E0
 
 /* Display lookup -glaiel::get_status_icon(StatusIconInfo* out,
  * std::string* name, bool allow_missing). This is the sole reader of
@@ -98,7 +98,7 @@
  * 15 clean bytes (register saves + pushes + LEA/SUB), no RIP-relative
  * instructions -safe for Mewjector's memcpy-based trampoline. Hooked
  * to intercept icon lookups for custom statuses. */
-#define RVA_DISPLAY_LOOKUP   0x490EF0
+#define RVA_DISPLAY_LOOKUP   0x492500
 #define GSI_STOLEN_BYTES     15
 
 /* Bearer status-list lookup helper. Signature:
@@ -111,20 +111,20 @@
  * custom collisions on a shared donor can be filtered out, letting two
  * different custom statuses cloned from the same donor coexist on the
  * same bearer. 360-byte function, 303 callers in the vanilla binary. */
-#define RVA_INSTANCE_LOOKUP  0x959B90
+#define RVA_INSTANCE_LOOKUP  0x961B60
 #define IL_STOLEN_BYTES      0   /* 0 = let mj_lde auto-calculate */
 
 /* Status removal -called when stacks reach 0 */
-#define RVA_STATUS_REMOVAL   0x75CF80
+#define RVA_STATUS_REMOVAL   0x7659D0
 
 /* Post-turn-end notification */
-#define RVA_POST_TURN_NOTIFY 0x75F0F0
+#define RVA_POST_TURN_NOTIFY 0x767B80
 
 /* String assign */
-#define RVA_STRING_ASSIGN    0x51C20
+#define RVA_STRING_ASSIGN    0x52080
 
 /* Heal function */
-#define RVA_APPLY_HEAL       0x113DB0
+#define RVA_APPLY_HEAL       0x115110
 
 /* Map offsets within the 0x280-byte registry struct */
 #define MAP0  0x000
@@ -141,7 +141,7 @@
 /* --------------------------------------------------------------------
  *  MAP4 32-byte opaque blob -field layout
  *
- *  Proven via Ghidra analysis of FUN_1403d3de0 (RVA_REGISTRY_BUILDER). The
+ *  Proven via Ghidra analysis of FUN_1403d5020 (RVA_REGISTRY_BUILDER). The
  *  builder memcpies a status-specific 32-byte blob from .rdata onto
  *  the stack, inserts it into MAP4 keyed by the status name string,
  *  and then MOVSB.REPs it into the slot that DATA32_INSERT returned.
@@ -208,7 +208,7 @@
  *  glaiel::Passive instance layout -base class shared by every status
  *
  *  Derived empirically (2026-04-11) by decompiling the base
- *  constructor FUN_14004c510 and the apply-status factories for Bleed,
+ *  constructor FUN_14004c8f0 and the apply-status factories for Bleed,
  *  Freeze, and Poison.
  *
  *  Offsets marked (W) are written by the base ctor. Offsets marked (F)
@@ -574,7 +574,7 @@ const CSF_StatusConfig* CSF_GetStatusConfig(int defIndex);
 /* GON field lookup: GonObject* gon_field_lookup(GonObject*, MSVC_String* name)
  * Returns the named child of a GON object, or NULL if not found.
  * The GonObject pointer must be to a type=OBJECT or type=ARRAY node. */
-#define RVA_GON_FIELD_LOOKUP    0x93EC00
+#define RVA_GON_FIELD_LOOKUP    0x947130
 
 /* GON struct layout constants (from MewgenicsModSdk, verified against disasm) */
 #define GON_CHILDREN_VEC   0x38   /* std::vector<GonObject> (begin/end/cap) */
@@ -799,9 +799,6 @@ UINT64 CSF_GenericTypeNameCheck(void* self, void* nameStr);  /* slot 2  */
 void*  CSF_GenericGetTypeInfo(void* self);                   /* slot 3  */
 void   CSF_GenericGetDisplayName(void* self, void* outStr);
 void*  CSF_GenericGetDisplayDesc(void* self, void* outBuf);  /* slot 28 */
-
-
-#endif /* CUSTOM_STATUS_FRAMEWORK_H */
 
 
 #endif /* CUSTOM_STATUS_FRAMEWORK_H */

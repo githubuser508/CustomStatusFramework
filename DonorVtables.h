@@ -1,7 +1,7 @@
 /*
  * DonorVtables.h -Extern declarations for all donor vtable arrays
- * Generated: 2026-04-01 17:46:39
- * 303 donors
+ * Generated: 2026-06-28 07:41:03
+ * 304 donors
  *
  * DO NOT EDIT BY HAND. Regenerate with:
  *   python generate_donors.py <RelocateRVAs_output.txt>
@@ -12,7 +12,7 @@
 
 #include <windows.h>
 
-#define CSF_DONOR_COUNT 303
+#define CSF_DONOR_COUNT 304
 
 extern const UINT_PTR g_addLeechesStatusVtableRVAs[172];  /* AddLeechesStatus */
 extern const UINT_PTR g_addStartingManaVtableRVAs[172];  /* AddStartingMana */
@@ -29,6 +29,7 @@ extern const UINT_PTR g_applyStatusesNextTurnEndVtableRVAs[172];  /* ApplyStatus
 extern const UINT_PTR g_attractionVtableRVAs[172];  /* Attraction */
 extern const UINT_PTR g_autoReanimateVtableRVAs[172];  /* AutoReanimate */
 extern const UINT_PTR g_backflipWhenTargetedVtableRVAs[172];  /* BackflipWhenTargeted */
+extern const UINT_PTR g_blastResistanceVtableRVAs[172];  /* BlastResistance */
 extern const UINT_PTR g_bleedVtableRVAs[172];  /* Bleed */
 extern const UINT_PTR g_bleedThornsVtableRVAs[172];  /* BleedThorns */
 extern const UINT_PTR g_blessingOfPeaceVtableRVAs[172];  /* BlessingOfPeace */

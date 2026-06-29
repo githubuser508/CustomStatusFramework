@@ -175,7 +175,7 @@ typedef struct CSFStatusConfigView {
  *                                                FireArmor (distinct
  *                                                from bit 2 ignite)
  *      bit 26 (0x04000000) OBSERVED_BIT_26     -Tangled branches into
- *                                                FUN_140803ef0(self,1)
+ *                                                FUN_14080ce80(self,1)
  *                                                when fire is absent
  *                                                but this bit is set;
  *                                                probable electric-
@@ -224,7 +224,7 @@ typedef struct CSF_ElementMask {
  *  caller (status-apply path) rejects incoming statuses whose category
  *  bit is set.
  *
- *  The base-vtable default at 0x75cc60 writes zero (no immunities).
+ *  The base-vtable default at 0x7656B0 writes zero (no immunities).
  *  The bit meanings are anchored by the donors that uniquely own each
  *  category:
  *
@@ -456,7 +456,7 @@ typedef int (__cdecl *CSFCore_fn_RegisterBehavior)(
 
 /* Request the engine remove a status instance from its owning
  * entity's status list.  Thin wrapper over the game-internal
- * request_removal routine (FUN_14075c660 in the current build,
+ * request_removal routine (FUN_1407650b0 in the current build,
  * resolved once via g_gameBase at call time).  Safe to call from
  * inside a slot override -the engine handles the actual teardown
  * and destructor chain.  Pass the instance pointer the slot received

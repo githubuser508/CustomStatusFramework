@@ -1,7 +1,7 @@
 /*
  * DonorLookup.inc -Auto-generated donor lookup table initializer
- * Generated: 2026-04-01 17:46:39
- * 303 entries (sorted alphabetically for binary search)
+ * Generated: 2026-06-28 07:41:03
+ * 304 entries (sorted alphabetically for binary search)
  *
  * #include'd by CustomStatusFramework.c inside the g_donorTable[] definition.
  *
@@ -24,6 +24,7 @@
     { "Attraction",                    g_attractionVtableRVAs },
     { "AutoReanimate",                 g_autoReanimateVtableRVAs },
     { "BackflipWhenTargeted",          g_backflipWhenTargetedVtableRVAs },
+    { "BlastResistance",               g_blastResistanceVtableRVAs },
     { "Bleed",                         g_bleedVtableRVAs },
     { "BleedThorns",                   g_bleedThornsVtableRVAs },
     { "BlessingOfPeace",               g_blessingOfPeaceVtableRVAs },

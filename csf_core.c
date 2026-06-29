@@ -907,7 +907,7 @@ static void* HookApplyStatus(void* name, void* owner, int stacks, void* gonObj,
             /* -- Prong 2a: DISABLED -CRASHES THE GAME --
              *
              * Writing an SSO string to +0x88 causes an access violation
-             * (RVA 0x75CFC0, reading RDI=0xE = strlen of the name we
+             * (RVA 0x765A10, reading RDI=0xE = strlen of the name we
              * wrote).  The +0x88 SSO's capacity field at +0xA0 overlaps
              * with a different game field, and the game reads our cap=15
              * as data for that field, causing a crash.
@@ -1097,7 +1097,7 @@ static void* HookAttachPassive(void* classname, void* owner,
 
 
 /* ====================================================================
- *  Hook -instance_lookup (RVA 0x959B90)
+ *  Hook -instance_lookup (RVA 0x961B60)
  *
  *  PURPOSE
  *  -------
@@ -1118,7 +1118,7 @@ static void* HookAttachPassive(void* classname, void* owner,
  *  into the sibling custom status. Vanilla statuses (no sidecar) pass
  *  through unchanged.
  *
- *  Buffer layout (from decomp of FUN_140959b90):
+ *  Buffer layout (from decomp of FUN_140961b60):
  *      +0x00  uint32   capacity
  *      +0x04  uint32   count
  *      +0x08  void**   data   (array of instance pointers)
@@ -1179,14 +1179,14 @@ static void* HookInstanceLookup(void* container, void* out_raw, int type_hash)
 
 
 /* ====================================================================
- *  Hook -glaiel::get_status_icon (RVA 0x490EF0)
+ *  Hook -glaiel::get_status_icon (RVA 0x492500)
  *
  *  PURPOSE
  *  -------
  *  Intercept status icon queries and patch the returned icon index
  *  for custom statuses that have modder-supplied icon overrides.
  *
- *  ABI (MSVC x64, verified from prologue bytes at 0x490EF0)
+ *  ABI (MSVC x64, verified from prologue bytes at 0x492500)
  *  --------------------------------------------------------
  *      RCX = out          StatusIconInfo* (hidden 32B struct return)
  *      RDX = name         std::string* (MSVC SSO layout)
@@ -1605,7 +1605,7 @@ static int InstallHooks_Raw(void)
 
 
 /* ====================================================================
- *  Init wrapper hook -replacement for FUN_140025330
+ *  Init wrapper hook -replacement for FUN_1400254f0
  * ==================================================================== */
 
 static void ReplacementInitCaller(void)
@@ -1881,8 +1881,8 @@ static void Initialize(void)
      */
     {
         /* Expected PE values for the known Mewgenics.exe build */
-        #define EXPECTED_TIMESTAMP    0x69CC1833
-        #define EXPECTED_SIZE_OF_IMAGE 0x1560000
+        #define EXPECTED_TIMESTAMP    0x6A10F6CA
+        #define EXPECTED_SIZE_OF_IMAGE 0x156B000
 
         const unsigned char* base = (const unsigned char*)g_gameBase;
         int binaryOk = 1;
@@ -2337,7 +2337,7 @@ __declspec(dllexport) void* __cdecl CSFCore_GetDonorSlotFn(
  *  CSFCore_RequestRemoval -ask the engine to remove a status instance
  *
  *  Thin wrapper over the game's internal request_removal routine at
- *  RVA 0x75C660 (FUN_14075c660 in the current decomp).  Resolved once
+ *  RVA 0x7650B0 (FUN_1407650b0 in the current decomp).  Resolved once
  *  per call via g_gameBase.  Extensions that want to implement
  *  removal-driven behaviors (e.g. "decrement counter, remove at
  *  zero") call this instead of hard-coding the RVA themselves, which
@@ -2359,7 +2359,7 @@ __declspec(dllexport) void __cdecl CSFCore_RequestRemoval(void* instance)
     request_removal_fn_t fn;
     if (!instance) return;
     if (!g_gameBase) return;
-    fn = (request_removal_fn_t)(g_gameBase + 0x75C660);
+    fn = (request_removal_fn_t)(g_gameBase + 0x7650B0);
     fn(instance);
 }
 
